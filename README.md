@@ -30,7 +30,7 @@ After this the app opens normally every time.
 
 ## Usage
 
-1. Launch **RHD Viewer**
-2. Click the **Folder icon** in the left bar and use the **…** button to select the folder containing your `.rhd` files
+1. Launch RHD Viewer
+2. Click the Folder icon in the left bar and use the **…** button to select the folder containing your `.rhd` files
 3. Click any file in the tree to load it
-4. Open the **Settings panel** to adjust detection parameters and click **Reload**
+4. Open the Settings panel to adjust detection parameters and click Reload
