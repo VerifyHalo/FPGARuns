@@ -4,6 +4,8 @@ A desktop viewer and seizure anotation interface for Intan RHD2000 neural record
 
 > Platform: macOS only (Apple Silicon & Intel)
 
+![RHD Viewer demo](demo.png)
+
 ---
 
 ## Download & Install
