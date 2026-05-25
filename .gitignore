@@ -1,0 +1,8 @@
+data/
+build/
+dist/
+__pycache__/
+*.pyc
+*.spec
+annotations.json
+
