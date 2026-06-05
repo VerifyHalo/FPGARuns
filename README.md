@@ -13,9 +13,9 @@ Go to the [latest release](https://github.com/VerifyHalo/FPGARuns/releases/lates
 ### Windows
 
 1. Download `RHD Viewer.exe`
-2. Double-click to launch — no installation required
+2. Double-click to launch. No installation required.
 
-> Windows may show a SmartScreen warning on first launch because the app is not yet code-signed. Click **More info → Run anyway** to proceed.
+> Windows may show a SmartScreen warning on first launch. Click **More info** then **Run anyway** to proceed.
 
 ### macOS
 
@@ -24,19 +24,13 @@ Go to the [latest release](https://github.com/VerifyHalo/FPGARuns/releases/lates
 3. Drag **RHD Viewer** into your Applications folder
 4. Eject the disk image
 
-**First launch (Gatekeeper):** Because the app is not yet notarized with an Apple Developer certificate, macOS will block it on the first open. To get past this (one time only):
-
-1. Right-click (or Control-click) the app in Applications
-2. Choose **Open**
-3. Click **Open** in the dialog that appears
-
-After this the app opens normally every time.
+**First launch:** macOS will block the app because it is not notarized. To open it the first time, right-click the app in Applications, choose **Open**, then click **Open** in the dialog. After that it opens normally.
 
 ---
 
 ## Usage
 
 1. Launch RHD Viewer
-2. Click the **≡** icon in the left bar and use the **…** button to select the folder containing your `.rhd` files
+2. Click the **≡** icon in the left bar and use the **...** button to select the folder containing your `.rhd` files
 3. Click any file in the tree to load it
 4. Open the Settings panel (**⊞**) to adjust detection parameters and click **Reload**
