@@ -32,8 +32,20 @@ from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSignal, QDir, QModelIndex
 from rhd_reader import read_rhd_info, read_rhd_channel
 from neo_detector import NeoDetector
 
-DATA_DIR     = Path(__file__).parent / "data"
-ANNOT_FILE   = Path(__file__).parent / "annotations.json"
+def _resource(rel: str) -> Path:
+    """Resolve a bundled resource path (works in dev and PyInstaller onefile)."""
+    if hasattr(sys, '_MEIPASS'):
+        return Path(sys._MEIPASS) / rel
+    return Path(__file__).parent / rel
+
+def _app_dir() -> Path:
+    """Directory next to the running executable (for user data files)."""
+    if getattr(sys, 'frozen', False):
+        return Path(sys.executable).parent
+    return Path(__file__).parent
+
+DATA_DIR     = _app_dir() / "data"
+ANNOT_FILE   = _app_dir() / "annotations.json"
 UV_PER_COUNT = 0.195
 MAX_PTS      = 20_000
 ZOOM_STEP    = 0.80
@@ -520,7 +532,7 @@ class Viewer(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("")
-        self.setWindowIcon(QIcon(str(Path(__file__).parent / "icon.png")))
+        self.setWindowIcon(QIcon(str(_resource("icon.png"))))
         self.resize(1400, 700)
         self._loader: Loader | None = None
         self._cur_path: Path | None = None
@@ -643,7 +655,7 @@ class Viewer(QMainWindow):
         " border-left: 3px solid {bar}; border-radius: 0px; font-size: {sz}px; }}"
         "QPushButton:hover {{ background: rgba(255,255,255,0.10); }}"
     )
-    _ICON_SIZES = {"files": 17, "annots": 17, "settings": 22}
+    _ICON_SIZES = {"files": 17, "annots": 13, "settings": 22}
 
     def _icon_style(self, active: bool, key: str = "") -> str:
         sz = self._ICON_SIZES.get(key, 17)
@@ -733,17 +745,17 @@ class Viewer(QMainWindow):
         bar.setFixedWidth(42)
         bar.setStyleSheet("QWidget { background: #252525; }")
         vbox = QVBoxLayout(bar)
-        vbox.setContentsMargins(0, 0, 0, 8)
-        vbox.setSpacing(12)
+        vbox.setContentsMargins(0, 0, 0, 0)
+        vbox.setSpacing(0)
 
         self._icon_btns: dict = {}
         for key, symbol, tip in (
             ("files",    "≡",  "Files"),
             ("annots",   "◎", "Detections"),
-            ("settings", "⚙", "Settings"),
+            ("settings", "⊞", "Settings"),
         ):
             btn = QPushButton(symbol)
-            btn.setFixedSize(42, 40)
+            btn.setFixedSize(42, 42)
             btn.setToolTip(tip)
             btn.clicked.connect(lambda _, k=key: self._toggle_panel(k))
             self._icon_btns[key] = btn
@@ -754,7 +766,7 @@ class Viewer(QMainWindow):
 
     def _build_file_panel(self) -> QWidget:
         container = QWidget()
-        container.setStyleSheet("QWidget { background-color: palette(base); }")
+        container.setStyleSheet("QWidget { background-color: #252525; }")
         vbox = QVBoxLayout(container)
         vbox.setContentsMargins(0, 0, 0, 0)
         vbox.setSpacing(0)
@@ -762,14 +774,14 @@ class Viewer(QMainWindow):
         # ── folder picker row ──────────────────────────────────────────
         picker = QWidget()
         picker.setFixedHeight(40)
-        picker.setStyleSheet("QWidget { background: rgba(255,255,255,0.08); }")
+        picker.setStyleSheet("QWidget { background: #1e1e1e; border-bottom: 1px solid #333; }")
         pl = QHBoxLayout(picker)
         pl.setContentsMargins(6, 4, 6, 4)
         pl.setSpacing(4)
 
         self._folder_label = QLabel("No folder selected")
         self._folder_label.setStyleSheet(
-            "QLabel { color: #666; font-size: 10px; background: transparent; }")
+            "QLabel { color: #666; font-size: 10px; background: transparent; border: none; }")
         self._folder_label.setMaximumWidth(180)
         self._folder_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
@@ -797,7 +809,7 @@ class Viewer(QMainWindow):
         self._tree.setModel(self._fs_model)
         self._tree.setHeaderHidden(True)
         self._tree.setFrameShape(QFrame.Shape.NoFrame)
-        self._tree.setStyleSheet("QTreeView { background: transparent; color: #ccc; border: none; }"
+        self._tree.setStyleSheet("QTreeView { background: #252525; color: #ccc; border: none; }"
                                   "QTreeView::item:selected { background: #2a4d7a; }"
                                   "QTreeView::item:hover { background: rgba(255,255,255,0.05); }")
         for col in (1, 2, 3):
@@ -1113,7 +1125,7 @@ class Viewer(QMainWindow):
         panel = QWidget()
         panel.setMinimumWidth(220)
         panel.setMaximumWidth(320)
-        panel.setStyleSheet("QWidget { background-color: palette(base); }")
+        panel.setStyleSheet("QWidget { background-color: #252525; }")
         vbox = QVBoxLayout(panel)
         vbox.setContentsMargins(6, 6, 6, 6)
         vbox.setSpacing(6)
@@ -1158,7 +1170,7 @@ class Viewer(QMainWindow):
         panel = QWidget()
         panel.setMinimumWidth(220)
         panel.setMaximumWidth(320)
-        panel.setStyleSheet("QWidget { background-color: palette(base); }")
+        panel.setStyleSheet("QWidget { background-color: #252525; }")
         vbox = QVBoxLayout(panel)
         vbox.setContentsMargins(10, 10, 10, 10)
         vbox.setSpacing(4)
@@ -1305,7 +1317,7 @@ class Viewer(QMainWindow):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setApplicationName("RHD Viewer")
-    app.setWindowIcon(QIcon(str(Path(__file__).parent / "icon.png")))
+    app.setWindowIcon(QIcon(str(_resource("icon.png"))))
 
     if sys.platform == "darwin":
         try:
