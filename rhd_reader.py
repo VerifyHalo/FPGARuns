@@ -145,8 +145,8 @@ def read_rhd_channel(path, channel_idx):
         f.seek(header_end)
         for b in range(num_blocks):
             f.seek(n_samp * 4, 1)                                          # timestamps
-            raw = np.frombuffer(f.read(amp_block_bytes), dtype="<u2").reshape(n_samp, num_amp)
-            out[b * n_samp : (b + 1) * n_samp] = raw[:, channel_idx]
+            raw = np.frombuffer(f.read(amp_block_bytes), dtype="<u2").reshape(num_amp, n_samp)
+            out[b * n_samp : (b + 1) * n_samp] = raw[channel_idx, :]
             f.seek(skip_after_amp, 1)
 
     return out, float(sample_rate)

@@ -160,6 +160,41 @@ def _rolling_mean(x: np.ndarray, w: int) -> np.ndarray:
     return out
 
 
+def _envelope(x: np.ndarray, i0: int, i1: int, fs: float, n_bins: int):
+    """Min/max envelope downsample of x[i0:i1] into up to n_bins bins.
+
+    Plain stride-slicing (skip every Nth sample) can miss a spike entirely
+    if it falls between kept samples. Binning and keeping each bin's true
+    min/max guarantees transients always show up, same as the static plots
+    in plot_all_hours.py. Returns (bin_centers, lo, hi).
+    """
+    n = i1 - i0
+    if n <= 0:
+        empty = np.array([])
+        return empty, empty, empty
+    bin_size = max(1, n // n_bins)
+    nb = max(1, n // bin_size)
+    end = i0 + nb * bin_size
+    seg = x[i0:end].reshape(nb, bin_size)
+    lo = seg.min(axis=1)
+    hi = seg.max(axis=1)
+    centers = (i0 + (np.arange(nb) + 0.5) * bin_size) / fs
+    return centers, lo, hi
+
+
+def _envelope_xy(centers: np.ndarray, lo: np.ndarray, hi: np.ndarray):
+    """Zigzag (lo, hi, lo, hi, ...) trace at each bin center, as ONE
+    continuous line for a plain Line2D — fast to render (a single connected
+    path), while still showing every bin's true min/max swing.
+    """
+    n = len(centers)
+    t_env = np.repeat(centers, 2)
+    y_env = np.empty(2 * n, dtype=np.float64)
+    y_env[0::2] = lo
+    y_env[1::2] = hi
+    return t_env, y_env
+
+
 def _run_gate(triggered: np.ndarray, tc: int, wt: int) -> list[tuple[int, int]]:
     """Gate state machine: tc consecutive detections → seizure start; wt timeouts → end."""
     seizures: list[tuple[int, int]] = []
@@ -398,20 +433,20 @@ class WaveCanvas(FigureCanvas):
         i0 = int(xmin * self._fs)
         i1 = min(int(xmax * self._fs) + 1, len(self._uv))
 
-        stride = max(1, (i1 - i0) // MAX_PTS)
-        t = (i0 + np.arange((i1 - i0 + stride - 1) // stride) * stride) / self._fs
+        t_c,  uv_lo,  uv_hi  = _envelope(self._uv,  i0, i1, self._fs, MAX_PTS)
+        _,    neo_lo, neo_hi = _envelope(self._neo, i0, i1, self._fs, MAX_PTS)
 
-        self._line.set_data(t,       self._uv[i0:i1:stride])
-        self._line2.set_data(t,      self._neo[i0:i1:stride])
-        self._line_gate.set_data(t,  self._uv[i0:i1:stride])
-        self._line_gate2.set_data(t, self._uv[i0:i1:stride])
+        self._line.set_data(*_envelope_xy(t_c, uv_lo, uv_hi))
+        self._line2.set_data(*_envelope_xy(t_c, neo_lo, neo_hi))
+        self._line_gate.set_data(*_envelope_xy(t_c, uv_lo, uv_hi))
+        self._line_gate2.set_data(*_envelope_xy(t_c, uv_lo, uv_hi))
 
-        def _evt_segs(col, data_slice, threshold):
+        def _evt_segs(col, hi_slice, t_centers, threshold):
             if threshold is None:
                 col.set_segments([])
                 return
-            mask = data_slice > threshold
-            et = t[mask]
+            mask = hi_slice > threshold
+            et = t_centers[mask]
             n = len(et)
             if n:
                 segs = np.empty((n, 2, 2))
@@ -421,14 +456,20 @@ class WaveCanvas(FigureCanvas):
             else:
                 col.set_segments([])
 
-        _evt_segs(self._evt_col, self._neo[i0:i1:stride], self._threshold)
+        # a bin counts as "triggered" if its max touched the threshold
+        # anywhere inside it — catches spikes plain stride-slicing could miss
+        _evt_segs(self._evt_col, neo_hi, t_c, self._threshold)
 
-        # rolling-average plot
+        # rolling-average plot — skip the NaN warm-up region before binning
         if self._neo_avg is not None:
-            avg_slice = self._neo_avg[i0:i1:stride]
-            valid = ~np.isnan(avg_slice)
-            self._line3.set_data(t[valid], avg_slice[valid])
-            _evt_segs(self._evt_col2, avg_slice, self._threshold_avg)
+            start = max(i0, self._avg_w - 1)
+            if start < i1:
+                t_c2, avg_lo, avg_hi = _envelope(self._neo_avg, start, i1, self._fs, MAX_PTS)
+                self._line3.set_data(*_envelope_xy(t_c2, avg_lo, avg_hi))
+                _evt_segs(self._evt_col2, avg_hi, t_c2, self._threshold_avg)
+            else:
+                self._line3.set_data([], [])
+                self._evt_col2.set_segments([])
         else:
             self._line3.set_data([], [])
             self._evt_col2.set_segments([])
@@ -652,7 +693,8 @@ class Viewer(QMainWindow):
 
     _ICON_STYLE = (
         "QPushButton {{ background: {bg}; color: {fg}; border: none;"
-        " border-left: 3px solid {bar}; border-radius: 0px; font-size: {sz}px; }}"
+        " border-left: 3px solid {bar}; border-radius: 0px; font-size: {sz}px;"
+        " padding: 0px; margin: 0px; }}"
         "QPushButton:hover {{ background: rgba(255,255,255,0.10); }}"
     )
     _ICON_SIZES = {"files": 17, "annots": 13, "settings": 22}
@@ -668,6 +710,8 @@ class Viewer(QMainWindow):
     def _update_icon_styles(self):
         for key, btn in self._icon_btns.items():
             btn.setStyleSheet(self._icon_style(key == self._active_panel, key))
+            btn.setFixedSize(42, 42)   # re-assert after every style swap so
+                                        # active/inactive states can't drift
 
     def _toggle_panel(self, key: str):
         if self._active_panel == key:
@@ -756,6 +800,7 @@ class Viewer(QMainWindow):
         ):
             btn = QPushButton(symbol)
             btn.setFixedSize(42, 42)
+            btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
             btn.setToolTip(tip)
             btn.clicked.connect(lambda _, k=key: self._toggle_panel(k))
             self._icon_btns[key] = btn
@@ -1030,9 +1075,13 @@ class Viewer(QMainWindow):
             self._open(path)
 
     def _open(self, path: Path):
+        prev_ch = self._ch_combo.currentIndex()   # -1 if nothing was selected yet
         self._cur_path = path
         day_m  = re.search(r'\d+', path.parent.name)
-        hour_m = re.search(r'(\d+)h', path.stem)
+        # filenames look like "BCI_260504_145436_1 hr.rhd" — the hour number
+        # is the last "_<digits> hr" segment before the extension, with a
+        # space before "hr" (not glued to the digits like "1hr")
+        hour_m = re.search(r'_(\d+)\s*hr$', path.stem)
         day  = day_m.group()  if day_m  else path.parent.name
         hour = hour_m.group(1) if hour_m else path.stem
         self._day_label.setText(f"Day #{day}")
@@ -1052,9 +1101,14 @@ class Viewer(QMainWindow):
             self._ch_combo.setItemData(
                 i, Qt.AlignmentFlag.AlignCenter, Qt.ItemDataRole.TextAlignmentRole)
         self._ch_combo.setEnabled(True)
+        # keep whatever channel was selected on the previous file, clamped
+        # to this file's channel count (falls back to 0 on first open or if
+        # the new file has fewer channels)
+        new_ch = prev_ch if 0 <= prev_ch < n_ch else 0
+        self._ch_combo.setCurrentIndex(new_ch)
         self._ch_combo.blockSignals(False)
 
-        self._load_channel(0)
+        self._load_channel(new_ch)
 
     def _on_channel_change(self, idx: int):
         if self._cur_path and idx >= 0:
