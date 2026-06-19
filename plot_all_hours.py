@@ -70,17 +70,6 @@ def plot_file(path: str, out_dir: str):
 
 
 def plot_file_old(path: str, out_dir: str):
-    """Recreates the ORIGINAL bug on purpose, for comparison.
-
-    This bypasses the official loader entirely and reads the raw blocks by
-    hand, the way old rhd_reader.py did: each block's amplifier section is
-    pulled out SAMPLE-major (block -> sample -> channel), instead of the
-    correct CHANNEL-major order (block -> channel -> sample).
-
-    This is intentionally a literal triple loop, not vectorized — it exists
-    only to demonstrate the bug, so it's slow (~1-2 min for a full 1hr file).
-    Don't wire this into main()'s 24-file loop.
-    """
     from rhd_reader import _parse_header
 
     hour = int(re.search(r"_(\d+) hr", path).group(1))
@@ -102,16 +91,16 @@ def plot_file_old(path: str, out_dir: str):
         amp_block_bytes = n_samp * num_amp * 2
 
         f.seek(header_end)
-        for b in range(num_blocks):                                   # 1: blocks
-            f.seek(n_samp * 4, 1)                                      # skip timestamps
-            flat = np.frombuffer(f.read(amp_block_bytes), dtype="<u2")  # n_samp*num_amp values
-            for s in range(n_samp):                                    # 2: samples FIRST
-                for ch in range(num_amp):                              # 3: then channel within that sample
-                    amp_wrong[ch, b * n_samp + s] = flat[s * num_amp + ch]  # WRONG offset (should be ch*n_samp+s)
+        for b in range(num_blocks):
+            f.seek(n_samp * 4, 1)
+            flat = np.frombuffer(f.read(amp_block_bytes), dtype="<u2")
+            for s in range(n_samp):
+                for ch in range(num_amp):
+                    amp_wrong[ch, b * n_samp + s] = flat[s * num_amp + ch]
             f.seek(skip_after_amp, 1)
 
-    amp_wrong_uv = (amp_wrong.astype(np.float32) - 32768.0) * 0.195   # uV
-    t = np.arange(n) / sample_rate                                     # seconds
+    amp_wrong_uv = (amp_wrong.astype(np.float32) - 32768.0) * 0.195
+    t = np.arange(n) / sample_rate
 
     n_ch = num_amp
     bin_size = n // N_BINS
