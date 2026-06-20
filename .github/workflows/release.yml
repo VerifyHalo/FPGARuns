@@ -1,0 +1,89 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*-mac'
+      - 'v*-win'
+
+jobs:
+  build-mac:
+    if: contains(github.ref_name, '-mac')
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install PyQt6 numpy matplotlib pyinstaller
+
+      - name: Build app bundle
+        run: |
+          pyinstaller --windowed --noconfirm --name "RHD Viewer" \
+            --add-data "icon.png:." \
+            --hidden-import matplotlib.backends.backend_qtagg \
+            viewer.py
+
+      - name: Package dmg
+        run: |
+          mkdir dmg_root
+          cp -R "dist/RHD Viewer.app" dmg_root/
+          hdiutil create -volname "RHD Viewer" -srcfolder dmg_root -ov -format UDZO "RHD Viewer.dmg"
+
+      - name: Derive version
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME%-mac}" >> "$GITHUB_OUTPUT"
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "RHD Viewer ${{ steps.ver.outputs.version }} (macOS)"
+          body: |
+            Standalone macOS app — no Python install required.
+
+            **Download:** `RHD Viewer.dmg` below
+          files: RHD Viewer.dmg
+
+  build-windows:
+    if: contains(github.ref_name, '-win')
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install PyQt6 numpy matplotlib pyinstaller
+
+      - name: Build executable
+        run: |
+          pyinstaller --onefile --windowed --noconfirm --name "RHD Viewer" \
+            --add-data "icon.png;." \
+            --hidden-import matplotlib.backends.backend_qtagg \
+            viewer.py
+
+      - name: Derive version
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME%-win}" >> "$GITHUB_OUTPUT"
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "RHD Viewer ${{ steps.ver.outputs.version }} (Windows)"
+          body: |
+            Standalone Windows executable — no Python install required.
+
+            **Download:** `RHD Viewer.exe` below
+          files: dist/RHD Viewer.exe
