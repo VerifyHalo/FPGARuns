@@ -6,6 +6,9 @@ on:
       - 'v*-mac'
       - 'v*-win'
 
+permissions:
+  contents: write
+
 jobs:
   build-mac:
     if: contains(github.ref_name, '-mac')
